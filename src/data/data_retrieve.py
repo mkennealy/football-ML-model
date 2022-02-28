@@ -113,9 +113,8 @@ def merge_in_fifa_data(df,fifa_data):
     
     df["Date"] = pd.to_datetime(df["Date"], infer_datetime_format=True) 
     df["Year"] = df["Date"].apply(lambda x:x.year) #create Year field to merge on 
-    df = df.merge(fifa_data[["Name","Year","ATT","MID","DEF","OVR"]],left_on = ["HomeTeam","Year"],right_on = ["Name","Year"],how = "left",suffixes = ["Home","Home"])
-    df = df.merge(fifa_data[["Name","Year","ATT","MID","DEF","OVR"]],left_on = ["AwayTeam","Year"],right_on = ["Name","Year"],how = "left",suffixes = [None,"_Away"])
-    df.rename(columns = {"ATT":"ATT_Home","MID":"MID_Home","DEF":"DEF_Home","OVR":"OVR_Home"},inplace=True)
+    df = df.merge(fifa_data[["Name","Year","ATT","MID","DEF","OVR"]].add_suffix("_Home"),left_on = ["HomeTeam","Year"],right_on = ["Name_Home","Year_Home"],how = "left")
+    df = df.merge(fifa_data[["Name","Year","ATT","MID","DEF","OVR"]].add_suffix("_Away"),left_on = ["AwayTeam","Year"],right_on = ["Name_Away","Year_Away"],how = "left")
     
     return df
 
