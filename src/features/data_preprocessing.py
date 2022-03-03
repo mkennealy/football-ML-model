@@ -114,7 +114,7 @@ def feature_engineering(df):
         return unique_ID
 
     df["TeamsUniqueID"] = df.apply(make_teams_set,axis=1,dict_unique_teams_ID=dict_unique_teams_ID)
-    
+
     #Previous match results with same home and away teams - in either order of home or away
     df["FTRPrevMatchofTeams1"] = df.groupby(["TeamsUniqueID"])["FTR"].shift(1)
     df["FTRPrevMatchofTeams2"] = df.groupby(["TeamsUniqueID"])["FTR"].shift(2)
@@ -130,5 +130,25 @@ def feature_engineering(df):
     df["FTRPrevMatch2"] = df.groupby(["Teams"])["FTR"].shift(2)
     df["FTRPrevMatch3"] = df.groupby(["Teams"])["FTR"].shift(3)
 
+        #Previous half time results with same home and away teams - in either order of home or away
+    df["HTRPrevMatchofTeams1"] = df.groupby(["Teams"])["HTR"].shift(1)
+    df["HTRPrevMatchofTeams2"] = df.groupby(["Teams"])["HTR"].shift(2)
+    df["HTRPrevMatchofTeams3"] = df.groupby(["Teams"])["HTR"].shift(3)
+
+
     df["HRatioShotsToShotsOnTarget"] = df["HST"]/df["HS"]
     df["ARatioShotsToShotsOnTarget"] = df["AST"]/df["AS"]
+
+    #lagged in game stats for previous matches of home team, rolling averages
+    in_game_stats_home = ["FTHG","HTHG","HS","HST","HF","HC","HY","HR","HRatioShotsToShotsOnTarget"]
+    for stat in in_game_stats_home:
+        df_all_seasons_reduced[stat+"Prev1"] = df_all_seasons_reduced.groupby("HomeTeam")[stat].shift(1).rolling(window=1).mean()
+        df_all_seasons_reduced[stat+"RollAvgPrev2"] = df_all_seasons_reduced.groupby("HomeTeam")[stat].shift(1).rolling(window=2).mean()
+        df_all_seasons_reduced[stat+"RollAvgPrev3"] = df_all_seasons_reduced.groupby("HomeTeam")[stat].shift(1).rolling(window=3).mean()
+
+    #lagged in game stats for previous matches of away team, rolling averages
+    in_game_stats_away = ["FTAG","HTAG","AS","AST","AF","AC","AY","AR","ARatioShotsToShotsOnTarget"]
+    for stat in in_game_stats_away:
+        df_all_seasons_reduced[stat+"Prev1"] = df_all_seasons_reduced.groupby("AwayTeam")[stat].shift(1).rolling(window=1).mean()
+        df_all_seasons_reduced[stat+"RollAvgPrev2"] = df_all_seasons_reduced.groupby("AwayTeam")[stat].shift(1).rolling(window=2).mean()
+        df_all_seasons_reduced[stat+"RollAvgPrev3"] = df_all_seasons_reduced.groupby("AwayTeam")[stat].shift(1).rolling(window=3).mean()
