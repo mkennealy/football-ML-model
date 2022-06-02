@@ -41,6 +41,7 @@ def feature_engineering(df):
     grp_goals_away = df.groupby(["Season","AwayTeam"]).agg({'FTAG': ['mean', 'count','sum']})
     grp_goals_away.columns = grp_goals_away.columns.to_flat_index().str.join('_')
     grp_goals_away.reset_index(inplace=True)
+    
     grp_goals_home_away = pd.merge(grp_goals_home,grp_goals_away,left_on =["Season","HomeTeam"],right_on = ["Season","AwayTeam"])
 
     #each team plays an equal number of matches at home or away so this calculates the average of all matches regardless of if they played at home/away
@@ -142,13 +143,67 @@ def feature_engineering(df):
     #lagged in game stats for previous matches of home team, rolling averages
     in_game_stats_home = ["FTHG","HTHG","HS","HST","HF","HC","HY","HR","HRatioShotsToShotsOnTarget"]
     for stat in in_game_stats_home:
-        df_all_seasons_reduced[stat+"Prev1"] = df_all_seasons_reduced.groupby("HomeTeam")[stat].shift(1).rolling(window=1).mean()
-        df_all_seasons_reduced[stat+"RollAvgPrev2"] = df_all_seasons_reduced.groupby("HomeTeam")[stat].shift(1).rolling(window=2).mean()
-        df_all_seasons_reduced[stat+"RollAvgPrev3"] = df_all_seasons_reduced.groupby("HomeTeam")[stat].shift(1).rolling(window=3).mean()
+        df[stat+"Prev1"] = df.groupby("HomeTeam")[stat].shift(1).rolling(window=1).mean()
+        df[stat+"RollAvgPrev2"] = df.groupby("HomeTeam")[stat].shift(1).rolling(window=2).mean()
+        df[stat+"RollAvgPrev3"] = df.groupby("HomeTeam")[stat].shift(1).rolling(window=3).mean()
 
     #lagged in game stats for previous matches of away team, rolling averages
     in_game_stats_away = ["FTAG","HTAG","AS","AST","AF","AC","AY","AR","ARatioShotsToShotsOnTarget"]
     for stat in in_game_stats_away:
-        df_all_seasons_reduced[stat+"Prev1"] = df_all_seasons_reduced.groupby("AwayTeam")[stat].shift(1).rolling(window=1).mean()
-        df_all_seasons_reduced[stat+"RollAvgPrev2"] = df_all_seasons_reduced.groupby("AwayTeam")[stat].shift(1).rolling(window=2).mean()
-        df_all_seasons_reduced[stat+"RollAvgPrev3"] = df_all_seasons_reduced.groupby("AwayTeam")[stat].shift(1).rolling(window=3).mean()
+        df[stat+"Prev1"] = df.groupby("AwayTeam")[stat].shift(1).rolling(window=1).mean()
+        df[stat+"RollAvgPrev2"] = df.groupby("AwayTeam")[stat].shift(1).rolling(window=2).mean()
+        df[stat+"RollAvgPrev3"] = df.groupby("AwayTeam")[stat].shift(1).rolling(window=3).mean()
+
+    #drop certain columns
+    first_to_drop = df.columns.get_loc("Bb1X2")
+    last_to_drop = df.columns.get_loc("BbAvAHA")
+    list_indexes_drop = [x for x in range(first_to_drop,last_to_drop+1)]
+    df = df.iloc[:,[x for x in range(len(df.columns)) if x not in list_indexes_drop]]
+
+    return df
+
+#Under/Over goal prediction
+
+def get_Target(total_goals,over_under_amount):
+    if total_goals >over_under_amount:
+        target = 1
+    else:
+        target = 0
+    return target
+
+def get_X_and_y_over_under(df,number_goals):
+    df["TotalGoalsInMatch"] = df["FTHG"] + df["FTAG"]
+    df["Target"] = df["TotalGoalsInMatch"].apply(get_Target,over_under_amount = number_goals)
+    
+    in_game_stats_home = ["FTHG","HTHG","HS","HST","HF","HC","HY","HR"]
+    in_game_stats_away = ["FTAG","HTAG","AS","AST","AF","AC","AY","AR"]
+    
+    X = df.drop(in_game_stats_home,axis=1)
+    X = X.drop(in_game_stats_away,axis=1)
+    
+    X = X.drop(["Target","TotalGoalsInMatch","FTR","HTR","Div","Date","Referee","Year"],axis=1)
+    y = df["Target"]
+
+    cat_cols = X.select_dtypes(exclude=np.number).columns.to_list()
+    #cat_cols.append("TeamsUniqueID")
+    #cat_cols_idx = [X.columns.get_loc(col) for col in cat_cols]
+
+    # Convert cat_features to pd.Categorical dtype
+    for col in cat_cols:
+        X[col] = pd.Categorical(X[col])
+
+    return df, X, y 
+
+def train_test_split(df,X,y):
+    mask_train = ((df["Year"]<2020))
+    mask_test = ((df["Year"]>=2020)&(df["Year"]<2021))
+
+    ##training data is matches before 2021 onwards
+    X_train = X.iloc[df[mask_train].index,:]
+    y_train = y.iloc[df[mask_train].index]
+
+    #testing data is matches from 2021 onwards
+    X_test = X.iloc[df[mask_test].index,:]
+    y_test = y.iloc[df[mask_test].index]
+
+    return X_train, y_train, X_test, y_test
