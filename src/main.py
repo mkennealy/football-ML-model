@@ -36,4 +36,7 @@ optimal_params = {
 
 preds, preds_class = tm.train_and_predict(X_train, y_train,X_test, y_test,optimal_params)
 evaluation_metrics = tm.evaluate_predictions(y_test,preds, preds_class)
+cv_scores, shap_values, df_shaps= tm.get_cross_validated_scores_and_shap_values(X_train,y_train,optimal_params)
+print(df_shaps)
+
 #show performance of model on different teams (perhaps certain teams are predicted better)

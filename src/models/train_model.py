@@ -1,10 +1,12 @@
 import numpy as np
+import pandas as pd
 import optuna
 from optuna.integration import LightGBMPruningCallback
 from sklearn.model_selection import KFold
 from sklearn.metrics import log_loss, roc_auc_score, precision_recall_curve, precision_score, accuracy_score
 import lightgbm as lgbm
 from lightgbm import LGBMClassifier
+import shap
 
 
 #LightGBM parameter tuning in optuna 
@@ -104,6 +106,10 @@ def get_predicted_class_from_pred_proba(preds,threshold):
     return predicted_class
 
 def train_and_predict(X_train, y_train,X_test, y_test,optimal_params):
+    '''
+    1. fit lightgbm model with optimised parameters on training data
+    2. return predicted probabilities and predicted class of test set obserbations
+    '''
     lgbm_params = optimal_params
     clf = LGBMClassifier(**lgbm_params)
     cat_cols = X_train.select_dtypes(exclude=np.number).columns.to_list()
@@ -119,7 +125,51 @@ def train_and_predict(X_train, y_train,X_test, y_test,optimal_params):
     return preds, preds_class
 
 def evaluate_predictions(y_test,preds, preds_class):
+    '''
+    prints evaluation metrics 
+    '''
     print(roc_auc_score(y_test, preds[:,1]))
     print(log_loss(y_test, preds))
     print(precision_score(y_test, preds_class))
     print(accuracy_score(y_test, preds_class))
+
+def get_cross_validated_scores_and_shap_values(X,y,parameters):
+    '''
+    manual cross validation to obtain unbiased shap values of every observation
+    '''
+
+    kfold = 5
+    folds = KFold(n_splits=kfold)
+    cat_cols = [col for col in X.columns if str(X[col].dtype) == "category"]
+    lgbm_params = parameters
+
+    cv_scores = {"auc":[],"logloss":[],"precision":[]}
+    shap_values_abs = np.zeros(X.shape)
+    shap_values = np.zeros(X.shape)
+    for n_fold, (train_idx, valid_idx) in enumerate(folds.split(X, y)):
+        train_x, train_y =X.iloc[train_idx], y.iloc[train_idx]
+        valid_x, valid_y = X.iloc[valid_idx], y.iloc[valid_idx]
+
+        clf = LGBMClassifier(**lgbm_params)
+        
+        clf.fit(train_x, train_y, early_stopping_rounds=100,verbose= 50, eval_set=[(valid_x, valid_y)],eval_metric='auc', 
+                categorical_feature=cat_cols)
+
+        preds = clf.predict_proba(valid_x)
+        preds_class = get_predicted_class_from_pred_proba(preds[:,1],0.5)
+
+        # Optimization index logloss minimum
+        cv_scores["auc"].append(roc_auc_score(valid_y, preds[:,1]))
+        cv_scores["logloss"].append(log_loss(valid_y, preds))
+        cv_scores["precision"].append(precision_score(valid_y, preds_class))
+        explainer = shap.TreeExplainer(clf)
+
+        shap_values[valid_idx] = explainer.shap_values(X.iloc[valid_idx])[1]
+        shap_values = shap_values.astype(np.float32)
+
+    shap_importance_abs = np.abs(shap_values).mean(0)
+    shap_importance = shap_values.mean(0)
+    df_shaps = pd.concat([pd.DataFrame(list(X.columns)),pd.DataFrame(shap_importance_abs),pd.DataFrame(shap_importance)],axis=1)
+    df_shaps.columns = ["Feature","Avg. Abs. Shap","Avg. Shap"]
+    df_shaps = df_shaps.sort_values(by="Avg. Abs. Shap",ascending=False).reset_index(drop=True).iloc[:15,:]
+    return cv_scores, shap_values,df_shaps
