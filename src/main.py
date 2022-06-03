@@ -18,8 +18,8 @@ X_train, y_train, X_test, y_test = pp.train_test_split(data,X,y)
 print(data.shape)
 print(X_train.shape, y_train.shape, X_test.shape, y_test.shape)
 
-optimal_params = tm.get_optimal_parameters(X_train,y_train,n_trials=35)
-print(optimal_params)
+#optimal_params = tm.get_optimal_parameters(X_train,y_train,n_trials=35)
+#print(optimal_params)
 optimal_params = {
                 'n_estimators': 286,
                 'max_depth': 6,
@@ -34,4 +34,6 @@ optimal_params = {
                 'bagging_freq': 1,
                 }
 
+preds, preds_class = tm.train_and_predict(X_train, y_train,X_test, y_test,optimal_params)
+evaluation_metrics = tm.evaluate_predictions(y_test,preds, preds_class)
 #show performance of model on different teams (perhaps certain teams are predicted better)

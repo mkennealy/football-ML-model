@@ -2,12 +2,13 @@ import numpy as np
 import optuna
 from optuna.integration import LightGBMPruningCallback
 from sklearn.model_selection import KFold
-from sklearn.metrics import log_loss, roc_auc_score, precision_recall_curve, precision_score
+from sklearn.metrics import log_loss, roc_auc_score, precision_recall_curve, precision_score, accuracy_score
 import lightgbm as lgbm
 from lightgbm import LGBMClassifier
 
 
 #LightGBM parameter tuning in optuna 
+#good resource in link below as a guide
 #https://programming.vip/docs/lightgbm-optuna-super-parameter-automatic-tuning-tutorial-with-code-framework.html
 
 def objective(trial, X, y):
@@ -31,7 +32,6 @@ def objective(trial, X, y):
     kfold = 5
     folds = KFold(n_splits=kfold)
     cat_cols = X.select_dtypes(exclude=np.number).columns.to_list()
-
 
     cv_scores = np.empty(5) 
     for n_fold, (train_idx, test_idx) in enumerate(folds.split(X, y)): 
@@ -88,3 +88,38 @@ def get_optimal_parameters(X,y,n_trials):
     print("\t\t}")
     
     return optimised_params
+
+
+def get_predicted_class_from_pred_proba(preds,threshold):
+    '''
+    Predicted probabilities above a given threshold are assigned class 1, otherwise they are class 0
+    '''
+    predicted_class = []
+    for pred in preds:
+        if pred >=threshold:
+            predicted_class.append(1)
+        else:
+            predicted_class.append(0)
+
+    return predicted_class
+
+def train_and_predict(X_train, y_train,X_test, y_test,optimal_params):
+    lgbm_params = optimal_params
+    clf = LGBMClassifier(**lgbm_params)
+    cat_cols = X_train.select_dtypes(exclude=np.number).columns.to_list()
+
+
+    clf.fit(X_train, y_train, 
+            categorical_feature=cat_cols,eval_set=[(X_test, y_test)],
+                eval_metric="binary_logloss",early_stopping_rounds=100)
+
+    preds = clf.predict_proba(X_test)
+    preds_class = get_predicted_class_from_pred_proba(preds[:,1],0.5)   
+
+    return preds, preds_class
+
+def evaluate_predictions(y_test,preds, preds_class):
+    print(roc_auc_score(y_test, preds[:,1]))
+    print(log_loss(y_test, preds))
+    print(precision_score(y_test, preds_class))
+    print(accuracy_score(y_test, preds_class))
