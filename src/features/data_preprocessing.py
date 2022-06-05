@@ -164,7 +164,7 @@ def feature_engineering(df):
 
 #Under/Over goal prediction
 
-def get_Target(total_goals,over_under_amount):
+def get_Target_over_under(total_goals,over_under_amount):
     if total_goals >over_under_amount:
         target = 1
     else:
@@ -173,7 +173,7 @@ def get_Target(total_goals,over_under_amount):
 
 def get_X_and_y_over_under(df,number_goals):
     df["TotalGoalsInMatch"] = df["FTHG"] + df["FTAG"]
-    df["Target"] = df["TotalGoalsInMatch"].apply(get_Target,over_under_amount = number_goals)
+    df["Target"] = df["TotalGoalsInMatch"].apply(get_Target_over_under,over_under_amount = number_goals)
     
     in_game_stats_home = ["FTHG","HTHG","HS","HST","HF","HC","HY","HR"]
     in_game_stats_away = ["FTAG","HTAG","AS","AST","AF","AC","AY","AR"]
@@ -192,7 +192,34 @@ def get_X_and_y_over_under(df,number_goals):
     for col in cat_cols:
         X[col] = pd.Categorical(X[col])
 
+    X.reset_index(drop=True, inplace=True)
+    y.reset_index(drop=True, inplace=True)
+
     return df, X, y 
+
+def get_X_and_y_FTR(df):
+
+    in_game_stats_home = ["FTHG","HTHG","HS","HST","HF","HC","HY","HR"]
+    in_game_stats_away = ["FTAG","HTAG","AS","AST","AF","AC","AY","AR"]
+
+    X = df.drop(in_game_stats_home,axis=1)
+    X = X.drop(in_game_stats_away,axis=1)
+    X = X.drop(["FTR","HTR","Div","Date","Referee","Year"],axis=1) #"['TotalGoalsInMatch', 'Name', 'Name_Away'] not found in axis"
+
+    FTR_mapping = {"H":1,"D":0,"A":-1}
+    y = df["FTR"]
+    y = y.apply(lambda x:FTR_mapping[x])
+
+    X.reset_index(drop=True, inplace=True)
+    y.reset_index(drop=True, inplace=True)
+
+    cat_cols = X.select_dtypes(exclude=np.number).columns.to_list()
+    #cat_cols.append("TeamsUniqueID") # KeyError 'TeamsUniqueID'
+    for col in cat_cols:
+        X[col] = pd.Categorical(X[col])
+
+    return df, X, y
+
 
 def train_test_split(df,X,y):
     mask_train = ((df["Year"]<2020))

@@ -6,13 +6,17 @@ import numpy as np
 import data.data_retrieve as dr
 import features.data_preprocessing as pp
 import models.train_model as tm
+import models.train_model_FTR as tmFTR
+
 
 #could make it object oriented so that different models can be different objects
 #could make Preprocess Class
 
 data = dr.get_data()
 data = pp.feature_engineering(data)
-data, X, y = pp.get_X_and_y_over_under(data,number_goals = 2.5)
+#data, X, y = pp.get_X_and_y_over_under(data,number_goals = 2.5)
+
+data, X, y = pp.get_X_and_y_FTR(data)
 X_train, y_train, X_test, y_test = pp.train_test_split(data,X,y)
 
 print(data.shape)
@@ -34,8 +38,11 @@ optimal_params = {
                 'bagging_freq': 1,
                 }
 
-preds, preds_class = tm.train_and_predict(X_train, y_train,X_test, y_test,optimal_params)
-evaluation_metrics = tm.evaluate_predictions(y_test,preds, preds_class)
+preds, preds_class = tmFTR.train_and_predict(X_train, y_train,X_test, y_test,optimal_params)
+evaluation_metrics = tmFTR.evaluate_predictions(y_test,preds, preds_class)
+
+
+
 cv_scores, shap_values, df_shaps= tm.get_cross_validated_scores_and_shap_values(X_train,y_train,optimal_params)
 print(df_shaps)
 
